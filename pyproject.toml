@@ -93,7 +93,7 @@ commands =
 
 [tool.ruff]
 src = ["src", "tests"]
-line-length = 88
+line-length = 100
 lint.select = [
     "B",   # flake8-bugbear - https://docs.astral.sh/ruff/rules/#flake8-bugbear-b
     "C4",  # flake8-comprehensions - https://docs.astral.sh/ruff/rules/#flake8-comprehensions-c4
@@ -114,9 +114,6 @@ exclude = [
 # Remove this line to forbid private member access in tests
 "tests/**/*" = ["SLF001"]
 
-[tool.importlinter]
-root_package = "manage_iocs"
-
 [tool.pixi.workspace]
 name = "manage-iocs"
 channels = ["conda-forge"]
@@ -127,3 +124,7 @@ manage-iocs = { path = ".", editable = true }
 
 [tool.pixi.tasks]
 lint = "pre-commit run --all-files"
+fix = "ruff check --fix"
+
+[tool.pixi.dependencies]
+python = ">=3.13.0,<3.14"

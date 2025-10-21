@@ -1,33 +1,25 @@
 """Interface for ``python -m manage_iocs``."""
 
-import argparse
-from .commands import COMMANDS
+import inspect
+import sys
+
+from . import commands
+
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Manage IOCs - Command Line Interface"
-    )
-    parser.add_argument(
-        "command",
-        choices=COMMANDS.keys(),
-        help="Command to execute",
-    )
-    parser.add_argument(
-        "ioc",
-        help="Target IOC name (if applicable)",
-        required=False,
-        type=str,
-    )
+    if len(sys.argv) < 2:
+        raise RuntimeError("No command provided!")
 
-    args = parser.parse_args()
-    command_info = COMMANDS[args.command]
-    if command_info.requires_ioc_target and not args.ioc:
-        parser.error(f"Command '{args.command}' requires a target IOC.")
-    # Execute the command
-    if command_info.requires_ioc_target:
-        command_info.callable(args.ioc)
-    else:
-        command_info.callable()
+    command = getattr(commands, sys.argv[1], None)
+    if not command or not inspect.isfunction(command):
+        raise RuntimeError(f"Unknown command: {sys.argv[1]}")
+
+    if not bool(inspect.signature(command).parameters):
+        return command()
+    elif len(sys.argv) < 3:
+        raise RuntimeError(f"Command '{command.__name__}' requires additional arguments!")
+    return command(*sys.argv[2:])
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
