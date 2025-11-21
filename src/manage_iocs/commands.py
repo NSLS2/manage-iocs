@@ -193,7 +193,7 @@ def uninstall(ioc: str):
     """Uninstall the given IOC."""
 
     if not os.geteuid() == 0:
-        raise RuntimeError("You must be root to uninstall an IOC!")
+        raise PermissionError("You must be root to uninstall an IOC!")
 
     _, _, ret = utils.systemctl_passthrough("stop", ioc)
     if ret != 0:
@@ -213,7 +213,7 @@ def install(ioc: str):
     """Install the given IOC."""
 
     if not os.geteuid() == 0:
-        raise RuntimeError("You must be root to install an IOC!")
+        raise PermissionError("You must be root to install an IOC!")
 
     service_file = utils.SYSTEMD_SERVICE_PATH / f"softioc-{ioc}.service"
     ioc_config = utils.find_iocs()[ioc]

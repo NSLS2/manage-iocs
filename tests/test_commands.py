@@ -109,7 +109,7 @@ def test_install_new_ioc(sample_iocs, monkeypatch):
 def test_install_ioc_not_root(sample_iocs, monkeypatch):
     monkeypatch.setattr(os, "geteuid", lambda: 1000)  # Mock as non-root user
 
-    with pytest.raises(RuntimeError, match="You must be root to install an IOC!"):
+    with pytest.raises(PermissionError, match="You must be root to install an IOC!"):
         cmds.install("ioc3")
 
 
@@ -143,7 +143,7 @@ def test_uninstall_ioc(sample_iocs, monkeypatch):
 def test_uninstall_ioc_not_root(sample_iocs, monkeypatch):
     monkeypatch.setattr(os, "geteuid", lambda: 1000)  # Mock as non-root user
 
-    with pytest.raises(RuntimeError, match="You must be root to uninstall an IOC!"):
+    with pytest.raises(PermissionError, match="You must be root to uninstall an IOC!"):
         cmds.uninstall("ioc1")
 
 
