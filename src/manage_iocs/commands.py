@@ -217,8 +217,11 @@ def install(ioc: str):
 
     service_file = utils.SYSTEMD_SERVICE_PATH / f"softioc-{ioc}.service"
     ioc_config = utils.find_iocs()[ioc]
+    base_hostname = socket.gethostname()
+    if "." in base_hostname:
+        base_hostname = base_hostname.split(".")[0]
 
-    if socket.gethostname() != ioc_config.host and ioc_config.host != "localhost":
+    if ioc_config.host not in [base_hostname, "localhost", socket.gethostname()]:
         raise RuntimeError(
             f"Cannot install IOC '{ioc}' on this host; configured host is '{ioc_config.host}'!"
         )
