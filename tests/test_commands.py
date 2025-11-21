@@ -1,20 +1,22 @@
-from dataclasses import dataclass
 import os
-import subprocess
-import manage_iocs
+
 import pytest
 
+import manage_iocs
 import manage_iocs.commands as cmds
-from manage_iocs.utils import get_ioc_statuses, find_installed_iocs
 import manage_iocs.utils
+from manage_iocs.utils import find_installed_iocs, get_ioc_statuses
+
 
 def test_version(capsys):
     from manage_iocs import __version__
+
     assert __version__ is not None
     rc = cmds.version()
     captured = capsys.readouterr()
     assert __version__ in captured.out
     assert rc == 0
+
 
 def test_help(capsys, all_manage_iocs_commands):
     rc = cmds.help()
@@ -23,6 +25,7 @@ def test_help(capsys, all_manage_iocs_commands):
     for cmd in all_manage_iocs_commands:
         assert cmd.__name__ in captured.out
     assert rc == 0
+
 
 def test_report(sample_iocs, capsys):
     cmds.report()
@@ -38,6 +41,7 @@ BASE | IOC | USER | PORT | EXEC
         return "\n".join(" ".join(line.split()) for line in s.strip().splitlines())
 
     assert normalize_whitespace(expected_output) == normalize_whitespace(captured.out)
+
 
 @pytest.mark.parametrize(
     "ioc_name, command, before_state, before_enabled, after_state, after_enabled",
@@ -55,10 +59,11 @@ BASE | IOC | USER | PORT | EXEC
         ("ioc1", cmds.restart, "Running", "Enabled", "Running", "Enabled"),
         ("ioc4", cmds.restart, "Stopped", "Disabled", "Running", "Disabled"),
         ("ioc3", cmds.restart, "Running", "Disabled", "Running", "Disabled"),
-    ]
+    ],
 )
-def test_state_change_commands(sample_iocs, ioc_name, command, before_state, before_enabled, after_state, after_enabled):
-
+def test_state_change_commands(
+    sample_iocs, ioc_name, command, before_state, before_enabled, after_state, after_enabled
+):
     _, status = get_ioc_statuses(ioc_name)
     assert status == (before_state, before_enabled)
 
@@ -70,7 +75,6 @@ def test_state_change_commands(sample_iocs, ioc_name, command, before_state, bef
 
 
 def test_install_new_ioc(sample_iocs, monkeypatch):
-
     monkeypatch.setattr(os, "geteuid", lambda: 0)  # Mock as root user
 
     assert "ioc2" not in find_installed_iocs()
@@ -85,14 +89,13 @@ def test_install_new_ioc(sample_iocs, monkeypatch):
 
 
 def test_install_ioc_not_root(sample_iocs, monkeypatch):
-
     monkeypatch.setattr(os, "geteuid", lambda: 1000)  # Mock as non-root user
 
     with pytest.raises(RuntimeError, match="You must be root to install an IOC!"):
         cmds.install("ioc3")
 
-def test_install_ioc_wrong_host(sample_iocs, monkeypatch):
 
+def test_install_ioc_wrong_host(sample_iocs, monkeypatch):
     monkeypatch.setattr(os, "geteuid", lambda: 0)  # Mock as root user
 
     with pytest.raises(RuntimeError, match="Cannot install IOC 'ioc1' on this host"):
@@ -100,7 +103,6 @@ def test_install_ioc_wrong_host(sample_iocs, monkeypatch):
 
 
 def test_install_already_installed_ioc(sample_iocs, monkeypatch):
-
     monkeypatch.setattr(os, "geteuid", lambda: 0)  # Mock as root user
 
     assert "ioc3" in find_installed_iocs()
@@ -108,8 +110,8 @@ def test_install_already_installed_ioc(sample_iocs, monkeypatch):
     with pytest.raises(RuntimeError, match="Failed to install IOC 'ioc3'!"):
         cmds.install("ioc3")
 
-def test_uninstall_ioc(sample_iocs, monkeypatch):
 
+def test_uninstall_ioc(sample_iocs, monkeypatch):
     monkeypatch.setattr(os, "geteuid", lambda: 0)  # Mock as root user
 
     assert "ioc5" in find_installed_iocs()
@@ -119,8 +121,8 @@ def test_uninstall_ioc(sample_iocs, monkeypatch):
 
     assert "ioc5" not in find_installed_iocs()
 
-def test_uninstall_ioc_not_root(sample_iocs, monkeypatch):
 
+def test_uninstall_ioc_not_root(sample_iocs, monkeypatch):
     monkeypatch.setattr(os, "geteuid", lambda: 1000)  # Mock as non-root user
 
     with pytest.raises(RuntimeError, match="You must be root to uninstall an IOC!"):
@@ -128,15 +130,15 @@ def test_uninstall_ioc_not_root(sample_iocs, monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "cmd, expected_state, expected_enabled", [
+    "cmd, expected_state, expected_enabled",
+    [
         (cmds.startall, "Running", None),
         (cmds.stopall, "Stopped", None),
         (cmds.enableall, None, "Enabled"),
         (cmds.disableall, None, "Disabled"),
-    ]
+    ],
 )
 def test_state_change_all(sample_iocs, cmd, expected_state, expected_enabled):
-
     installed_iocs = find_installed_iocs()
     assert len(installed_iocs) == 4
 
@@ -151,6 +153,7 @@ def test_state_change_all(sample_iocs, cmd, expected_state, expected_enabled):
         if expected_enabled is not None:
             assert get_ioc_statuses(ioc.name)[1][1] == expected_enabled
 
+
 def test_attach(sample_iocs, monkeypatch, dummy_popen):
     monkeypatch.setattr(os, "geteuid", lambda: 1000)  # Mock as non-root user
 
@@ -158,33 +161,36 @@ def test_attach(sample_iocs, monkeypatch, dummy_popen):
 
     assert ret == ["telnet", "localhost", "3456"]
 
+
 def test_status(sample_iocs, capsys):
     rc = cmds.status()
     captured = capsys.readouterr()
-    expected_output = f"""IOC Status Auto-Start
+    expected_output = """IOC Status Auto-Start
 ----------------------------
 ioc1 Running Enabled
 ioc3 Running Disabled
 ioc4 Stopped Disabled
 ioc5 Stopped Enabled
 """
+
     def normalize_whitespace(s: str) -> str:
         return "\n".join(" ".join(line.split()) for line in s.strip().splitlines())
 
     assert normalize_whitespace(expected_output) == normalize_whitespace(captured.out)
     assert rc == 0
 
+
 @pytest.mark.parametrize(
-    "cmd, expected_message", [
+    "cmd, expected_message",
+    [
         (cmds.start, "Failed to start IOC 'ioc4'!"),
         (cmds.stop, "Failed to stop IOC 'ioc4'!"),
         (cmds.restart, "Failed to restart IOC 'ioc4'!"),
         (cmds.enable, "Failed to enable autostart for IOC 'ioc4'!"),
         (cmds.disable, "Failed to disable autostart for IOC 'ioc4'!"),
-    ]
+    ],
 )
 def test_command_failures(sample_iocs, monkeypatch, cmd, expected_message):
-
     monkeypatch.setattr(os, "geteuid", lambda: 0)  # Mock as root user
 
     def failing_systemctl_passthrough(action: str, ioc: str) -> tuple[str, str, int]:
@@ -197,14 +203,14 @@ def test_command_failures(sample_iocs, monkeypatch, cmd, expected_message):
 
 
 @pytest.mark.parametrize(
-    "failed_action, expected_message", [
+    "failed_action, expected_message",
+    [
         ("stop", "Failed to stop IOC 'ioc5' before uninstalling!"),
         ("disable", "Failed to disable IOC 'ioc5' before uninstalling!"),
         ("uninstall", "Failed to uninstall IOC 'ioc5'!"),
-    ]
+    ],
 )
 def test_uninstall_failures(sample_iocs, monkeypatch, failed_action, expected_message):
-
     monkeypatch.setattr(os, "geteuid", lambda: 0)  # Mock as root user
 
     def failing_systemctl_passthrough(action: str, ioc: str) -> tuple[str, str, int]:
@@ -219,7 +225,6 @@ def test_uninstall_failures(sample_iocs, monkeypatch, failed_action, expected_me
 
 
 def test_fail_to_install_ioc_to_run_as_root(sample_iocs, monkeypatch, sample_config_file_factory):
-
     monkeypatch.setattr(os, "geteuid", lambda: 0)  # Mock as root user
 
     sample_config_file_factory(name="ioc1", user="root")

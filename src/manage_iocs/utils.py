@@ -3,9 +3,13 @@ import socket
 from dataclasses import dataclass
 from pathlib import Path
 from subprocess import PIPE, Popen
-import os
 
-IOC_SEARCH_PATH = [Path("/epics/iocs"), Path("/opt/epics/iocs"), Path("/opt/iocs")] + [Path(p) for p in os.environ["MANAGE_IOCS_SEARCH_PATH"].split(os.pathsep)] if "MANAGE_IOCS_SEARCH_PATH" in os.environ else []
+IOC_SEARCH_PATH = (
+    [Path("/epics/iocs"), Path("/opt/epics/iocs"), Path("/opt/iocs")]
+    + [Path(p) for p in os.environ["MANAGE_IOCS_SEARCH_PATH"].split(os.pathsep)]
+    if "MANAGE_IOCS_SEARCH_PATH" in os.environ
+    else []
+)
 SYSTEMD_SERVICE_PATH = Path("/etc/systemd/system")
 
 
@@ -39,7 +43,9 @@ def find_iocs() -> dict[str, IOC]:
     for search_path in search_paths:
         if os.path.exists(search_path):
             for item in os.listdir(search_path):
-                if os.path.isdir(search_path / item) and os.path.exists(search_path / item / "config"):
+                if os.path.isdir(search_path / item) and os.path.exists(
+                    search_path / item / "config"
+                ):
                     config = read_config_file(search_path / item / "config")
                     iocs[item] = IOC(
                         name=item,

@@ -2,9 +2,10 @@
 
 import inspect
 import sys
+from collections.abc import Callable
 
-from typing import Callable
 from . import commands
+
 
 def get_command_from_args(args: list[str]) -> Callable:
     if len(args) < 2:
@@ -21,13 +22,17 @@ def get_command_from_args(args: list[str]) -> Callable:
 
     # Return a lambda that calls the command with the additional args
     # Assign it the same name as the original command for testing purposes
-    command_w_args = lambda: command(*args[2:])
+    def command_w_args():
+        return command(*args[2:])
+
     command_w_args.__name__ = command.__name__
 
     return command_w_args
 
+
 def main():
     get_command_from_args(sys.argv)()
+
 
 if __name__ == "__main__":
     sys.exit(main())

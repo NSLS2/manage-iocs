@@ -1,12 +1,16 @@
+import inspect
+from collections.abc import Callable
+
 import pytest
-from typing import Callable
+
 import manage_iocs.commands as cmds
 from manage_iocs.__main__ import get_command_from_args
 
-import inspect
+
 def test_no_command_provided():
     with pytest.raises(RuntimeError, match="No command provided!"):
         get_command_from_args(["manage_iocs"])
+
 
 def test_unknown_command():
     with pytest.raises(RuntimeError, match="Unknown command: unknown_cmd"):
@@ -23,15 +27,15 @@ def _get_cmds_w_required_args():
             cmds_w_req_args.append(name)
     return cmds_w_req_args
 
+
 CMDS_WITH_REQUIRED_ARGS = _get_cmds_w_required_args()
 
-@pytest.mark.parametrize(
-    "cmd",
-    [(name) for name in CMDS_WITH_REQUIRED_ARGS]
-)
+
+@pytest.mark.parametrize("cmd", list(CMDS_WITH_REQUIRED_ARGS))
 def test_command_requires_additional_arguments(cmd):
     with pytest.raises(RuntimeError, match=f"Command '{cmd}' requires additional arguments!"):
         get_command_from_args(["manage_iocs", cmd])  # '{cmd}' requires an argument
+
 
 @pytest.mark.parametrize(
     "args, expected_command",
@@ -50,7 +54,7 @@ def test_command_requires_additional_arguments(cmd):
         (["stopall"], cmds.stopall),
         (["install", "ioc7"], cmds.install),
         (["uninstall", "ioc8"], cmds.uninstall),
-    ]
+    ],
 )
 def test_get_command_from_args(args, expected_command):
     cmd = get_command_from_args(["manage_iocs"] + args)

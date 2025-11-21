@@ -138,6 +138,7 @@ def stopall():
         ret += stop(ioc.name)
     return ret
 
+
 def enableall():
     """Enable autostart for all IOCs on this host."""
 
@@ -147,6 +148,7 @@ def enableall():
         ret += enable(ioc.name)
     return ret
 
+
 def disableall():
     """Disable autostart for all IOCs on this host."""
 
@@ -155,6 +157,7 @@ def disableall():
     for ioc in iocs:
         ret += disable(ioc.name)
     return ret
+
 
 def restart(ioc: str):
     """Restart the given IOC."""

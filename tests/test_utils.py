@@ -1,8 +1,17 @@
-import pytest
 import socket
+
+import pytest
+
 import manage_iocs.utils
-from manage_iocs.utils import read_config_file, find_installed_iocs, find_iocs_on_host, find_iocs, get_ioc_procserv_port, get_ioc_statuses, IOC_SEARCH_PATH, systemctl_passthrough
-import os
+from manage_iocs.utils import (
+    find_installed_iocs,
+    find_iocs,
+    find_iocs_on_host,
+    get_ioc_procserv_port,
+    get_ioc_statuses,
+    read_config_file,
+    systemctl_passthrough,
+)
 
 
 def test_read_config_file(sample_config_file):
@@ -13,8 +22,8 @@ def test_read_config_file(sample_config_file):
     assert config["EXEC"] == "st.cmd"
     assert config["NAME"] == "sample_ioc"
 
-def test_find_iocs(sample_iocs):
 
+def test_find_iocs(sample_iocs):
     iocs = find_iocs()
     assert len(iocs) == 5
     assert "ioc1" in iocs
@@ -30,6 +39,7 @@ def test_find_iocs(sample_iocs):
     assert iocs["ioc2"].host == socket.gethostname()
     assert iocs["ioc3"].host == "localhost"
 
+
 def test_find_iocs_on_host(sample_iocs):
     iocs = find_iocs_on_host()
     assert len(iocs) == 3
@@ -37,12 +47,13 @@ def test_find_iocs_on_host(sample_iocs):
     assert "ioc3" in iocs
     assert "ioc4" in iocs
 
+
 def test_get_ioc_procserv_port(sample_iocs):
     port = get_ioc_procserv_port("ioc2")
     assert port == 2345
 
-def test_find_installed_iocs(sample_iocs):
 
+def test_find_installed_iocs(sample_iocs):
     iocs = find_installed_iocs()
     assert len(iocs) == 4
     assert "ioc1" in iocs
@@ -50,17 +61,19 @@ def test_find_installed_iocs(sample_iocs):
     assert "ioc4" in iocs
     assert "ioc5" in iocs
 
+
 def test_get_ioc_statuses(sample_iocs):
     rc, status = get_ioc_statuses("ioc1")
     assert rc == 0
     assert status == ("Running", "Enabled")
 
+
 def test_get_ioc_statuses_not_installed(sample_iocs):
     rc, _ = get_ioc_statuses("ioc2")
     assert rc != 0
 
-def test_get_ioc_statuses_unknown_response(sample_iocs, monkeypatch):
 
+def test_get_ioc_statuses_unknown_response(sample_iocs, monkeypatch):
     def dummy_systemctl_passthrough(action: str, ioc: str) -> tuple[str, str, int]:
         return ("unknown response", "", 0)
 
@@ -77,7 +90,7 @@ def test_get_ioc_statuses_unknown_response(sample_iocs, monkeypatch):
         ("stop", "ioc1"),
         ("enable", "ioc4"),
         ("disable", "ioc1"),
-    ]
+    ],
 )
 def test_systemctl_passthrough(dummy_popen, action, ioc):
     out, _, _ = systemctl_passthrough(action, ioc)
