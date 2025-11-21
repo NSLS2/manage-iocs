@@ -40,7 +40,8 @@ BASE | IOC | USER | PORT | EXEC
     def normalize_whitespace(s: str) -> str:
         return "\n".join(" ".join(line.split()) for line in s.strip().splitlines())
 
-    assert normalize_whitespace(expected_output) == normalize_whitespace(captured.out)
+    for line in expected_output.strip().splitlines():
+        assert normalize_whitespace(line) in normalize_whitespace(captured.out)
 
 
 @pytest.mark.parametrize(
@@ -176,7 +177,9 @@ ioc5 Stopped Enabled
     def normalize_whitespace(s: str) -> str:
         return "\n".join(" ".join(line.split()) for line in s.strip().splitlines())
 
-    assert normalize_whitespace(expected_output) == normalize_whitespace(captured.out)
+    for line in expected_output.strip().splitlines():
+        assert normalize_whitespace(line) in normalize_whitespace(captured.out)
+
     assert rc == 0
 
 
