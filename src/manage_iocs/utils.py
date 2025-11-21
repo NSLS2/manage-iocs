@@ -4,12 +4,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from subprocess import PIPE, Popen
 
-IOC_SEARCH_PATH = (
-    [Path("/epics/iocs"), Path("/opt/epics/iocs"), Path("/opt/iocs")]
-    + [Path(p) for p in os.environ["MANAGE_IOCS_SEARCH_PATH"].split(os.pathsep)]
-    if "MANAGE_IOCS_SEARCH_PATH" in os.environ
-    else []
-)
+IOC_SEARCH_PATH = [Path("/epics/iocs"), Path("/opt/epics/iocs"), Path("/opt/iocs")]
+if "MANAGE_IOCS_SEARCH_PATH" in os.environ:
+    IOC_SEARCH_PATH.extend(
+        [Path(p) for p in os.environ["MANAGE_IOCS_SEARCH_PATH"].split(os.pathsep)]
+    )
+
 SYSTEMD_SERVICE_PATH = Path("/etc/systemd/system")
 
 
@@ -89,21 +89,24 @@ def systemctl_passthrough(action: str, ioc: str) -> tuple[str, str, int]:
     """Helper to call systemctl with the given action and IOC name."""
     proc = Popen(["systemctl", action, f"softioc-{ioc}.service"], stdin=PIPE, stdout=PIPE)
     out, err = proc.communicate()
-    return out.decode().strip(), err.decode().strip(), proc.returncode
+    decoded_out = out.decode().strip() if out else ""
+    decoded_err = err.decode().strip() if err else ""
+    return decoded_out, decoded_err, proc.returncode
 
 
-def get_ioc_statuses(ioc_name: str) -> tuple[int, tuple[str, str]]:
+def get_ioc_status(ioc_name: str) -> tuple[str, bool]:
     """Get the active and enabled status of the given IOC."""
 
-    status, _, ret = systemctl_passthrough("is-active", ioc_name)
-    if status == "inactive":
-        status = "Stopped"
-    elif status == "active":
-        status = "Running"
-    else:
-        status = status.capitalize()
+    state, err, _ = systemctl_passthrough("is-active", ioc_name)
 
-    enabled, _, ret_enable = systemctl_passthrough("is-enabled", ioc_name)
-    ret = ret + ret_enable
+    # Convert to more user-friendly terms
+    if state == "active":
+        state = "Running"
+    elif state == "inactive":
+        state = "Stopped"
 
-    return ret, (status, enabled.capitalize())
+    enabled, err, _ = systemctl_passthrough("is-enabled", ioc_name)
+    if enabled not in ("enabled", "disabled"):
+        raise RuntimeError(err)
+
+    return state.capitalize(), enabled == "enabled"

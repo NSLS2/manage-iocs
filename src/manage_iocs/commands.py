@@ -2,11 +2,15 @@ import inspect
 import os
 import socket
 import sys
+import time as ttime
 from subprocess import PIPE, Popen
 
 from . import __version__, utils
 
-EXTRA_PAD_WIDTH = 3
+EXTRA_PAD_WIDTH = 5
+
+# Length added to string to account for ANSI color escape codes
+ANSI_COLOR_ESC_CODE_LEN = 9
 
 
 def version():
@@ -51,23 +55,32 @@ def attach(ioc: str):
 
 def report():
     """Show config(s) of an all IOCs on localhost"""
+    base_hostname = socket.gethostname()
+    if "." in base_hostname:
+        base_hostname = base_hostname.split(".")[0]
+
     iocs = [
         ioc_config
         for ioc_config in utils.find_iocs().values()
-        if ioc_config.host == "localhost" or ioc_config.host == socket.gethostname()
+        if ioc_config.host == "localhost"
+        or ioc_config.host == base_hostname
+        or ioc_config.host == socket.gethostname()
     ]
     max_base_len = max(len(str(ioc.path)) for ioc in iocs) + EXTRA_PAD_WIDTH
     max_ioc_name_len = max(len(ioc.name) for ioc in iocs) + EXTRA_PAD_WIDTH
     max_user_len = max(len(ioc.user) for ioc in iocs) + EXTRA_PAD_WIDTH
     max_port_len = max(len(str(ioc.procserv_port)) for ioc in iocs) + EXTRA_PAD_WIDTH
-    max_exec_len = max(len(ioc.exec_path) for ioc in iocs) + max_base_len
+    max_exec_len = max(len(ioc.exec_path) for ioc in iocs) + max_base_len - EXTRA_PAD_WIDTH
 
-    print(
+    header = (
         f"{'BASE'.ljust(max_base_len)}| {'IOC'.ljust(max_ioc_name_len)}| "
         f"{'USER'.ljust(max_user_len)}| {'PORT'.ljust(max_port_len)}| "
         f"{'EXEC'.ljust(max_exec_len)}"
     )
+    print(header)
+    print("-" * len(header))
     for ioc in iocs:
+        ttime.sleep(0.01)
         print(
             f"{str(ioc.path).ljust(max_base_len)}| {ioc.name.ljust(max_ioc_name_len)}| "
             f"{ioc.user.ljust(max_user_len)}| {str(ioc.procserv_port).ljust(max_port_len)}| "
@@ -246,21 +259,32 @@ def status():
     """Get the status of the given IOC."""
 
     ret = 0
-    statuses: dict[str, tuple[str, str]] = {}
+    statuses: dict[str, tuple[str, bool]] = {}
     installed_iocs = utils.find_installed_iocs().keys()
 
     for installed_ioc in installed_iocs:
-        status_ret, status = utils.get_ioc_statuses(installed_ioc)
-        ret += status_ret  # TODO: Log warning
-        statuses[installed_ioc] = status
+        try:
+            statuses[installed_ioc] = utils.get_ioc_status(installed_ioc)
+        except RuntimeError:
+            pass  # TODO: Handle this better?
 
     max_ioc_name_len = max(len(ioc_name) for ioc_name in statuses.keys()) + EXTRA_PAD_WIDTH
     max_status_len = max(len(status[0]) for status in statuses.values()) + EXTRA_PAD_WIDTH
-    max_enabled_len = max(len(status[1]) for status in statuses.values()) + EXTRA_PAD_WIDTH
+    max_enabled_len = len("Auto-Start")
 
     print(f"{'IOC'.ljust(max_ioc_name_len)}{'Status'.ljust(max_status_len)}Auto-Start")
+    ttime.sleep(0.01)
     print("-" * (max_ioc_name_len + max_status_len + max_enabled_len))
-    for ioc_name, (status_str, enabled_str) in statuses.items():
-        print(f"{ioc_name.ljust(max_ioc_name_len)}{status_str.ljust(max_status_len)}{enabled_str}")
+    for ioc_name, (state, is_enabled) in statuses.items():
+        ttime.sleep(0.01)
+        if state == "Running":
+            state_str = f"\033[92m{state}\033[0m"  # Green
+        elif state == "Stopped":
+            state_str = f"\033[91m{state}\033[0m"  # Red
+        else:
+            state_str = f"\033[93m{state}\033[0m"  # Yellow
+        print(
+            f"{ioc_name.ljust(max_ioc_name_len)}{state_str.ljust(max_status_len + ANSI_COLOR_ESC_CODE_LEN)}{'Enabled' if is_enabled else 'Disabled'}"  # noqa: E501
+        )
 
     return ret
