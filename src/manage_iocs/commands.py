@@ -49,14 +49,6 @@ def attach(ioc: str):
     return proc.wait()
 
 
-def test():
-    """A list of all IOC instances; including those IOCs running on other hosts"""
-
-    iocs = utils.find_iocs()
-    for ioc in iocs.values():
-        print(ioc.path / ioc.name)
-
-
 def report():
     """Show config(s) of an all IOCs on localhost"""
     iocs = [
@@ -79,14 +71,14 @@ def report():
         print(
             f"{str(ioc.path).ljust(max_base_len)}| {ioc.name.ljust(max_ioc_name_len)}| "
             f"{ioc.user.ljust(max_user_len)}| {str(ioc.procserv_port).ljust(max_port_len)}| "
-            f"{str(ioc.path / ioc.exec_path).ljust(max_exec_len)}"
+            f"{str(ioc.path / ioc.chdir / ioc.exec_path).ljust(max_exec_len)}"
         )
 
 
 def disable(ioc: str):
     """Disable autostart for the given IOC."""
 
-    ret = utils.systemctl_passthrough("disable", ioc)
+    _, _, ret = utils.systemctl_passthrough("disable", ioc)
     if ret == 0:
         print(f"Autostart disabled for IOC '{ioc}'")
     else:
@@ -97,7 +89,7 @@ def disable(ioc: str):
 def enable(ioc: str):
     """Enable autostart for the given IOC."""
 
-    ret = utils.systemctl_passthrough("enable", ioc)
+    _, _, ret = utils.systemctl_passthrough("enable", ioc)
     if ret == 0:
         print(f"Autostart enabled for IOC '{ioc}'")
     else:
@@ -108,7 +100,7 @@ def enable(ioc: str):
 def start(ioc: str):
     """Start the given IOC."""
 
-    ret = utils.systemctl_passthrough("start", ioc)
+    _, _, ret = utils.systemctl_passthrough("start", ioc)
     if ret == 0:
         print(f"IOC '{ioc}' started successfully.")
     else:
@@ -129,7 +121,7 @@ def startall():
 def stop(ioc: str):
     """Stop the given IOC."""
 
-    ret = utils.systemctl_passthrough("stop", ioc)
+    _, _, ret = utils.systemctl_passthrough("stop", ioc)
     if ret == 0:
         print(f"IOC '{ioc}' stopped successfully.")
     else:
@@ -146,11 +138,28 @@ def stopall():
         ret += stop(ioc.name)
     return ret
 
+def enableall():
+    """Enable autostart for all IOCs on this host."""
+
+    iocs = utils.find_installed_iocs().values()
+    ret = 0
+    for ioc in iocs:
+        ret += enable(ioc.name)
+    return ret
+
+def disableall():
+    """Disable autostart for all IOCs on this host."""
+
+    iocs = utils.find_installed_iocs().values()
+    ret = 0
+    for ioc in iocs:
+        ret += disable(ioc.name)
+    return ret
 
 def restart(ioc: str):
     """Restart the given IOC."""
 
-    ret = utils.systemctl_passthrough("restart", ioc)
+    _, _, ret = utils.systemctl_passthrough("restart", ioc)
     if ret == 0:
         print(f"IOC '{ioc}' restarted successfully.")
     else:
@@ -164,13 +173,13 @@ def uninstall(ioc: str):
     if not os.geteuid() == 0:
         raise RuntimeError("You must be root to uninstall an IOC!")
 
-    ret = utils.systemctl_passthrough("stop", ioc)
+    _, _, ret = utils.systemctl_passthrough("stop", ioc)
     if ret != 0:
         raise RuntimeError(f"Failed to stop IOC '{ioc}' before uninstalling!")
-    ret = utils.systemctl_passthrough("disable", ioc)
+    _, _, ret = utils.systemctl_passthrough("disable", ioc)
     if ret != 0:
         raise RuntimeError(f"Failed to disable IOC '{ioc}' before uninstalling!")
-    ret = utils.systemctl_passthrough("uninstall", f"softioc-{ioc}.service")
+    _, _, ret = utils.systemctl_passthrough("uninstall", ioc)
     if ret == 0:
         print(f"IOC '{ioc}' uninstalled successfully.")
     else:
@@ -184,7 +193,7 @@ def install(ioc: str):
     if not os.geteuid() == 0:
         raise RuntimeError("You must be root to install an IOC!")
 
-    service_file = f"/etc/systemd/system/softioc-{ioc}.service"
+    service_file = utils.SYSTEMD_SERVICE_PATH / f"softioc-{ioc}.service"
     ioc_config = utils.find_iocs()[ioc]
 
     if socket.gethostname() != ioc_config.host and ioc_config.host != "localhost":
@@ -222,11 +231,11 @@ WantedBy=multi-user.target
 """
         )
 
-    ret = utils.systemctl_passthrough("install", f"softioc-{ioc}.service")
+    _, stderr, ret = utils.systemctl_passthrough("install", ioc)
     if ret == 0:
         print(f"IOC '{ioc}' installed successfully.")
     else:
-        raise RuntimeError(f"Failed to install IOC '{ioc}'!")
+        raise RuntimeError(f"Failed to install IOC '{ioc}'!: {stderr.strip()}")
     return ret
 
 
@@ -252,8 +261,3 @@ def status():
         print(f"{ioc_name.ljust(max_ioc_name_len)}{status_str.ljust(max_status_len)}{enabled_str}")
 
     return ret
-
-
-def rename(ioc: str, name: str):
-    """Rename the given IOC to a new name."""
-    pass

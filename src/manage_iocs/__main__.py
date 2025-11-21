@@ -3,23 +3,31 @@
 import inspect
 import sys
 
+from typing import Callable
 from . import commands
 
-
-def main():
-    if len(sys.argv) < 2:
+def get_command_from_args(args: list[str]) -> Callable:
+    if len(args) < 2:
         raise RuntimeError("No command provided!")
 
-    command = getattr(commands, sys.argv[1], None)
+    command = getattr(commands, args[1], None)
     if not command or not inspect.isfunction(command):
-        raise RuntimeError(f"Unknown command: {sys.argv[1]}")
+        raise RuntimeError(f"Unknown command: {args[1]}")
 
     if not bool(inspect.signature(command).parameters):
-        return command()
-    elif len(sys.argv) < 3:
+        return command
+    elif len(args) < 3:
         raise RuntimeError(f"Command '{command.__name__}' requires additional arguments!")
-    return command(*sys.argv[2:])
 
+    # Return a lambda that calls the command with the additional args
+    # Assign it the same name as the original command for testing purposes
+    command_w_args = lambda: command(*args[2:])
+    command_w_args.__name__ = command.__name__
+
+    return command_w_args
+
+def main():
+    get_command_from_args(sys.argv)()
 
 if __name__ == "__main__":
     sys.exit(main())

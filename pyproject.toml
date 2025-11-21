@@ -125,6 +125,10 @@ manage-iocs = { path = ".", editable = true }
 [tool.pixi.tasks]
 lint = "pre-commit run --all-files"
 fix = "ruff check --fix"
+test = "pytest --cov=manage_iocs --cov-report=html"
 
 [tool.pixi.dependencies]
 python = ">=3.13.0,<3.14"
+pytest = ">=9.0.1,<10"
+pyyaml = ">=6.0.3,<7"
+pytest-cov = ">=7.0.0,<8"
