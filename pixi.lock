@@ -377,8 +377,8 @@ packages:
   timestamp: 1727963148474
 - pypi: ./
   name: manage-iocs
-  version: 0.1.dev3+ge6caab110.d20251121
-  sha256: 08de6b1750518647db8bb1c19810a4d68859f18d9c439fe5030392f9e79d89c5
+  version: 0.1.dev4+gff6e13f2b.d20251121
+  sha256: b17a5a0752f7a690574d0579516dca3b71e3be468a9b1b6f2fcbc474a87d8d3b
   requires_dist:
   - pyyaml
   - copier ; extra == 'dev'
