@@ -66,6 +66,12 @@ def report():
         or ioc_config.host == base_hostname
         or ioc_config.host == socket.gethostname()
     ]
+
+    if len(iocs) == 0:
+        print("No IOCs found on configured to run on this host.")
+        print(f"Searched in: {utils.IOC_SEARCH_PATH}")
+        return 1
+
     max_base_len = max(len(str(ioc.path)) for ioc in iocs) + EXTRA_PAD_WIDTH
     max_ioc_name_len = max(len(ioc.name) for ioc in iocs) + EXTRA_PAD_WIDTH
     max_user_len = max(len(ioc.user) for ioc in iocs) + EXTRA_PAD_WIDTH
@@ -261,6 +267,9 @@ def status():
     ret = 0
     statuses: dict[str, tuple[str, bool]] = {}
     installed_iocs = utils.find_installed_iocs().keys()
+    if len(installed_iocs) == 0:
+        print("No Installed IOCs found on this host.")
+        return 1
 
     for installed_ioc in installed_iocs:
         try:

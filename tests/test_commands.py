@@ -51,6 +51,19 @@ BASE | IOC | USER | PORT | EXEC
         assert normalize_whitespace(line) in normalize_whitespace(captured.out)
 
 
+def test_report_no_iocs(monkeypatch, capsys):
+    monkeypatch.setattr(
+        manage_iocs.utils,
+        "find_iocs",
+        lambda: {},
+    )
+
+    rc = cmds.report()
+    captured = capsys.readouterr()
+    assert "No IOCs found on configured to run on this host." in captured.out
+    assert rc == 1
+
+
 @pytest.mark.parametrize(
     "ioc_name, command, before_state, before_enabled, after_state, after_enabled",
     [
@@ -188,6 +201,19 @@ ioc5 Stopped Enabled
         )
 
     assert rc == 0
+
+
+def test_status_no_installed_iocs(sample_iocs, monkeypatch, capsys):
+    monkeypatch.setattr(
+        manage_iocs.utils,
+        "find_installed_iocs",
+        lambda: {},
+    )
+
+    rc = cmds.status()
+    captured = capsys.readouterr()
+    assert "No Installed IOCs found on this host." in captured.out
+    assert rc == 1
 
 
 @pytest.mark.parametrize(
