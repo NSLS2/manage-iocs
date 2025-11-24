@@ -1,5 +1,4 @@
 import inspect
-import os
 import socket
 import sys
 from subprocess import PIPE, Popen
@@ -75,6 +74,7 @@ def report():
         )
 
 
+@utils.requires_root
 def disable(ioc: str):
     """Disable autostart for the given IOC."""
 
@@ -86,6 +86,7 @@ def disable(ioc: str):
     return ret
 
 
+@utils.requires_root
 def enable(ioc: str):
     """Enable autostart for the given IOC."""
 
@@ -139,6 +140,7 @@ def stopall():
     return ret
 
 
+@utils.requires_root
 def enableall():
     """Enable autostart for all IOCs on this host."""
 
@@ -149,6 +151,7 @@ def enableall():
     return ret
 
 
+@utils.requires_root
 def disableall():
     """Disable autostart for all IOCs on this host."""
 
@@ -170,11 +173,9 @@ def restart(ioc: str):
     return ret
 
 
+@utils.requires_root
 def uninstall(ioc: str):
     """Uninstall the given IOC."""
-
-    if not os.geteuid() == 0:
-        raise RuntimeError("You must be root to uninstall an IOC!")
 
     _, _, ret = utils.systemctl_passthrough("stop", ioc)
     if ret != 0:
@@ -190,11 +191,9 @@ def uninstall(ioc: str):
     return ret
 
 
+@utils.requires_root
 def install(ioc: str):
     """Install the given IOC."""
-
-    if not os.geteuid() == 0:
-        raise RuntimeError("You must be root to install an IOC!")
 
     service_file = utils.SYSTEMD_SERVICE_PATH / f"softioc-{ioc}.service"
     ioc_config = utils.find_iocs()[ioc]

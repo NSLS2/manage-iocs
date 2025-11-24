@@ -1,5 +1,6 @@
 import os
 import socket
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from subprocess import PIPE, Popen
@@ -107,3 +108,16 @@ def get_ioc_statuses(ioc_name: str) -> tuple[int, tuple[str, str]]:
     ret = ret + ret_enable
 
     return ret, (status, enabled.capitalize())
+
+
+def requires_root(func: Callable):
+    def wrapper(*args, **kwargs):
+        if os.geteuid() != 0:
+            raise PermissionError(f"Command {func.__name__} requires root privileges.")
+        return func(*args, **kwargs)
+
+    # Preserve the original function's name and docstring
+    wrapper.__doc__ = func.__doc__
+    wrapper.__name__ = func.__name__
+
+    return wrapper

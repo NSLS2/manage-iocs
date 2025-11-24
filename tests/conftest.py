@@ -14,6 +14,11 @@ def all_manage_iocs_commands():
     return [obj for name, obj in inspect.getmembers(cmds) if inspect.isfunction(obj)]
 
 
+@pytest.fixture(autouse=True)
+def sim_running_as_root(monkeypatch):
+    monkeypatch.setattr(os, "geteuid", lambda: 0)  # Mock as root user
+
+
 @pytest.fixture
 def sample_config_file_factory(tmp_path):
     def _simple_config_file(
