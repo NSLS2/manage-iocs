@@ -25,7 +25,7 @@ def test_read_config_file(sample_config_file):
 
 def test_find_iocs(sample_iocs):
     iocs = find_iocs()
-    assert len(iocs) == 5
+    assert len(iocs) == 6
     assert "ioc1" in iocs
     assert "ioc2" in iocs
     assert "ioc3" in iocs

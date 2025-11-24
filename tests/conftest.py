@@ -67,11 +67,16 @@ def sample_iocs(tmp_path, sample_config_file_factory, monkeypatch):
     sample_config_file_factory(name="ioc3", port=3456, exec_path="start_epics", chdir="iocBoot")
     sample_config_file_factory(name="ioc4", port=6789)
     sample_config_file_factory(name="ioc5", port=7890, hostname="remote_host")
+    sample_config_file_factory(name="ioc6", port=8901, hostname="random")
 
     monkeypatch.setattr(manage_iocs.utils, "IOC_SEARCH_PATH", [tmp_path / "iocs"])
     monkeypatch.setattr(
         manage_iocs.utils, "SYSTEMD_SERVICE_PATH", tmp_path / "etc" / "systemd" / "system"
     )
+
+    log_dir = tmp_path / "var" / "log" / "softioc"
+    monkeypatch.setattr(manage_iocs.utils, "MANAGE_IOCS_LOG_PATH", log_dir)
+    os.makedirs(log_dir, exist_ok=True)
 
     ioc_states: dict[str, IOCState] = {}
     ioc_states["ioc1"] = IOCState("active", "enabled")

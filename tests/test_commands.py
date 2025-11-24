@@ -28,7 +28,7 @@ def test_version(capsys):
 def test_help(capsys, all_manage_iocs_commands):
     rc = cmds.help()
     captured = capsys.readouterr()
-    assert "Usage: manage-iocs <command> [ioc]" in captured.out
+    assert "Usage: manage-iocs [command] <ioc>" in captured.out
     for cmd in all_manage_iocs_commands:
         assert cmd.__name__ in captured.out
     assert rc == 0
@@ -116,14 +116,14 @@ def test_install_new_ioc(sample_iocs, monkeypatch):
 
 
 def test_install_ioc_wrong_host(sample_iocs, monkeypatch):
-    with pytest.raises(RuntimeError, match="Cannot install IOC 'ioc1' on this host"):
-        cmds.install("ioc1")
+    with pytest.raises(RuntimeError, match="Cannot install IOC 'ioc6' on this host"):
+        cmds.install("ioc6")
 
 
 def test_install_already_installed_ioc(sample_iocs, monkeypatch):
     assert "ioc3" in find_installed_iocs()
 
-    with pytest.raises(RuntimeError, match="Failed to install IOC 'ioc3'!"):
+    with pytest.raises(RuntimeError, match="IOC 'ioc3' is already installed!"):
         cmds.install("ioc3")
 
 
@@ -180,6 +180,9 @@ def test_attach(sample_iocs, monkeypatch, dummy_popen, as_root):
     ret = cmds.attach("ioc3")
 
     assert ret == ["telnet", "localhost", "3456"]
+
+    with pytest.raises(RuntimeError, match="Cannot attach to IOC 'ioc4': IOC is not running!"):
+        cmds.attach("ioc4")  # IOC is stopped
 
 
 @pytest.mark.parametrize("as_root", [True, False])
@@ -263,6 +266,54 @@ def test_uninstall_failures(sample_iocs, monkeypatch, failed_action, expected_me
 
 
 def test_fail_to_install_ioc_to_run_as_root(sample_iocs, monkeypatch, sample_config_file_factory):
-    sample_config_file_factory(name="ioc1", user="root")
-    with pytest.raises(RuntimeError, match="Refusing to install IOC 'ioc1' to run as user 'root'!"):
-        cmds.install("ioc1")
+    sample_config_file_factory(name="ioc7", user="root", port=9012)
+    with pytest.raises(RuntimeError, match="Refusing to install IOC 'ioc7' to run as user 'root'!"):
+        cmds.install("ioc7")
+
+
+@pytest.mark.parametrize(
+    "cmd",
+    [cmds.start, cmds.stop, cmds.restart, cmds.enable, cmds.disable, cmds.attach],
+)
+def test_command_requires_ioc_installed(sample_iocs, cmd):
+    with pytest.raises(RuntimeError, match="No IOC with name 'ioc2' is installed!"):
+        cmd("ioc2")
+
+
+def test_nextport(sample_iocs, capsys):
+    rc = cmds.nextport()
+    captured = capsys.readouterr()
+    assert int(captured.out.strip()) == 8902  # Highest used port is 7890 in sample_iocs
+    assert rc == 0
+
+
+def test_lastlog(sample_iocs, monkeypatch, capsys):
+    log_file = sample_iocs / "var" / "log" / "softioc" / "ioc3.log"
+
+    with open(log_file, "w") as f:
+        f.write("Line 1\nLine 2\nLine 3\n")
+        f.write('@@@ Restarting child "ioc3"\n')
+        f.write("Line 4\nLine 5\n")
+
+    rc = cmds.lastlog("ioc3")
+    captured = capsys.readouterr()
+    assert captured.out.strip() == '@@@ Restarting child "ioc3"\nLine 4\nLine 5'
+    assert rc == 0
+
+
+def test_lastlog_no_log_file(sample_iocs, monkeypatch):
+    sample_iocs / "var" / "log" / "softioc" / "ioc4.log"
+
+    with pytest.raises(RuntimeError, match="No log file found for IOC 'ioc4'"):
+        cmds.lastlog("ioc4")
+
+
+def test_lastlog_no_restart_marker(sample_iocs, monkeypatch, capsys):
+    log_file = sample_iocs / "var" / "log" / "softioc" / "ioc4.log"
+    with open(log_file, "w") as f:
+        f.write("Line A\nLine B\nLine C\n")
+
+    rc = cmds.lastlog("ioc4")
+    captured = capsys.readouterr()
+    assert captured.out.strip() == "Line A\nLine B\nLine C"
+    assert rc == 0

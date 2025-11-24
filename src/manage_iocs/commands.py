@@ -22,7 +22,7 @@ def version():
 def help():
     """Display this help message."""
     version()
-    print("Usage: manage-iocs <command> [ioc]")
+    print("Usage: manage-iocs [command] <ioc>")
     print("Available commands:")
     docs: dict[str, str] = {}
     signatures: dict[str, list[str]] = {}
@@ -41,11 +41,18 @@ def help():
     return 0
 
 
+@utils.requires_ioc_installed
 def attach(ioc: str):
     """Connect to procServ telnet server for the given IOC."""
 
+    is_running, _ = utils.get_ioc_status(ioc)
+    if is_running != "Running":
+        raise RuntimeError(f"Cannot attach to IOC '{ioc}': IOC is not running!")
+
+    procserv_port = utils.get_ioc_procserv_port(ioc)
+    print(f"Attaching to IOC '{ioc}' at port {procserv_port}...")
     proc = Popen(
-        ["telnet", "localhost", str(utils.get_ioc_procserv_port(ioc))],
+        ["telnet", "localhost", str(procserv_port)],
         stdin=PIPE,
         stdout=PIPE,
     )
@@ -71,6 +78,11 @@ def report():
         print(f"Searched in: {utils.IOC_SEARCH_PATH}")
         return 1
 
+    if len({ioc.procserv_port for ioc in iocs}) < len(iocs):
+        print("Warning: Detected multiple IOCs configured to use the same procServ port!")
+    elif len({ioc.name for ioc in iocs}) < len(iocs):
+        print("Warning: Detected multiple IOCs configured with the same name!")
+
     max_base_len = max(len(str(ioc.path)) for ioc in iocs) + EXTRA_PAD_WIDTH
     max_ioc_name_len = max(len(ioc.name) for ioc in iocs) + EXTRA_PAD_WIDTH
     max_user_len = max(len(ioc.user) for ioc in iocs) + EXTRA_PAD_WIDTH
@@ -94,6 +106,7 @@ def report():
 
 
 @utils.requires_root
+@utils.requires_ioc_installed
 def disable(ioc: str):
     """Disable autostart for the given IOC."""
 
@@ -106,6 +119,7 @@ def disable(ioc: str):
 
 
 @utils.requires_root
+@utils.requires_ioc_installed
 def enable(ioc: str):
     """Enable autostart for the given IOC."""
 
@@ -117,6 +131,7 @@ def enable(ioc: str):
     return ret
 
 
+@utils.requires_ioc_installed
 def start(ioc: str):
     """Start the given IOC."""
 
@@ -138,6 +153,7 @@ def startall():
     return ret
 
 
+@utils.requires_ioc_installed
 def stop(ioc: str):
     """Stop the given IOC."""
 
@@ -181,6 +197,7 @@ def disableall():
     return ret
 
 
+@utils.requires_ioc_installed
 def restart(ioc: str):
     """Restart the given IOC."""
 
@@ -194,7 +211,7 @@ def restart(ioc: str):
 
 @utils.requires_root
 def uninstall(ioc: str):
-    """Uninstall the given IOC."""
+    """Remove /etc/systemd/system/softioc-[ioc].service"""
 
     _, _, ret = utils.systemctl_passthrough("stop", ioc)
     if ret != 0:
@@ -212,7 +229,18 @@ def uninstall(ioc: str):
 
 @utils.requires_root
 def install(ioc: str):
-    """Install the given IOC."""
+    """Create /etc/systemd/system/softioc-[ioc].service"""
+
+    iocs = utils.find_installed_iocs()
+    if ioc in iocs:
+        raise RuntimeError(f"IOC '{ioc}' is already installed!")
+
+    procserv_ports = [ioc.procserv_port for ioc in utils.find_installed_iocs().values()]
+    if utils.find_iocs()[ioc].procserv_port in procserv_ports:
+        raise RuntimeError(
+            f"Cannot install IOC '{ioc}': procServ port "
+            f"{utils.find_iocs()[ioc].procserv_port} is already in use!"
+        )
 
     service_file = utils.SYSTEMD_SERVICE_PATH / f"softioc-{ioc}.service"
     ioc_config = utils.find_iocs()[ioc]
@@ -299,3 +327,61 @@ def status():
         )
 
     return ret
+
+
+def nextport():
+    """Find the next unused procServ port."""
+
+    used_ports = [ioc.procserv_port for ioc in utils.find_iocs().values()]
+
+    print(max(used_ports) + 1 if len(used_ports) > 0 else 4000)
+    return 0
+
+
+@utils.requires_ioc_installed
+def lastlog(ioc: str):
+    """Display the output of the last IOC startup"""
+
+    log_file = utils.MANAGE_IOCS_LOG_PATH / f"{ioc}.log"
+    if not log_file.exists():
+        raise RuntimeError(f"No log file found for IOC '{ioc}' at '{log_file}'!")
+
+    with open(log_file) as f:
+        log = f.readlines()
+        start_index = 0
+        for i, line in reversed(list(enumerate(log))):
+            if line.strip() == f'@@@ Restarting child "{ioc}"':
+                start_index = i
+                break
+        if start_index == 0:
+            last_log = "".join(log)
+        else:
+            last_log = "".join(log[start_index:])
+        print(last_log)
+    return 0
+
+
+@utils.requires_ioc_installed
+@utils.requires_root
+def rename(ioc: str, new_name: str):
+    """Rename an installed IOC."""
+
+    state, is_enabled = utils.get_ioc_status(ioc)
+    uninstall(ioc)
+
+    ioc_config = utils.find_iocs()[ioc]
+    with open(ioc_config.path / "config", "w") as f:
+        f.write(f"NAME={new_name}\n")
+        f.write(f"HOST={ioc_config.host}\n")
+        f.write(f"PORT={ioc_config.procserv_port}\n")
+        f.write(f"USER={ioc_config.user}\n")
+        if ioc_config.exec_path:
+            f.write(f"EXEC={ioc_config.exec_path}\n")
+        if ioc_config.chdir and len(ioc_config.chdir) > 0:
+            f.write(f"CHDIR={ioc_config.chdir}\n")
+
+    install(new_name)
+    if is_enabled:
+        enable(new_name)
+    if state == "Running":
+        start(new_name)

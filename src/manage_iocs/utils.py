@@ -1,3 +1,4 @@
+import functools
 import os
 import socket
 from collections.abc import Callable
@@ -12,6 +13,7 @@ if "MANAGE_IOCS_SEARCH_PATH" in os.environ:
     )
 
 SYSTEMD_SERVICE_PATH = Path("/etc/systemd/system")
+MANAGE_IOCS_LOG_PATH = Path("/var/log/softioc")
 
 
 @dataclass
@@ -114,13 +116,21 @@ def get_ioc_status(ioc_name: str) -> tuple[str, bool]:
 
 
 def requires_root(func: Callable):
-    def wrapper(*args, **kwargs):
+    @functools.wraps(func)
+    def wrapper(*args):
         if os.geteuid() != 0:
             raise PermissionError(f"Command {func.__name__} requires root privileges.")
-        return func(*args, **kwargs)
+        return func(*args)
 
-    # Preserve the original function's name and docstring
-    wrapper.__doc__ = func.__doc__
-    wrapper.__name__ = func.__name__
+    return wrapper
+
+
+def requires_ioc_installed(func: Callable):
+    @functools.wraps(func)
+    def wrapper(ioc: str, *args, **kwargs):
+        installed_iocs = find_installed_iocs()
+        if ioc not in installed_iocs:
+            raise RuntimeError(f"No IOC with name '{ioc}' is installed!")
+        return func(ioc, *args, **kwargs)
 
     return wrapper
