@@ -5,7 +5,14 @@ import pytest
 import manage_iocs
 import manage_iocs.commands as cmds
 import manage_iocs.utils
-from manage_iocs.utils import find_installed_iocs, get_ioc_statuses
+from manage_iocs.utils import find_installed_iocs, get_ioc_status
+
+
+def strip_ansi_codes(s: str) -> str:
+    import re
+
+    ansi_escape = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
+    return ansi_escape.sub("", s)
 
 
 def test_version(capsys):
@@ -44,22 +51,35 @@ BASE | IOC | USER | PORT | EXEC
         assert normalize_whitespace(line) in normalize_whitespace(captured.out)
 
 
+def test_report_no_iocs(monkeypatch, capsys):
+    monkeypatch.setattr(
+        manage_iocs.utils,
+        "find_iocs",
+        lambda: {},
+    )
+
+    rc = cmds.report()
+    captured = capsys.readouterr()
+    assert "No IOCs found on configured to run on this host." in captured.out
+    assert rc == 1
+
+
 @pytest.mark.parametrize(
     "ioc_name, command, before_state, before_enabled, after_state, after_enabled, as_root",
     [
-        ("ioc1", cmds.stop, "Running", "Enabled", "Stopped", "Enabled", False),
-        ("ioc3", cmds.stop, "Running", "Disabled", "Stopped", "Disabled", False),
-        ("ioc4", cmds.stop, "Stopped", "Disabled", "Stopped", "Disabled", False),
-        ("ioc1", cmds.start, "Running", "Enabled", "Running", "Enabled", False),
-        ("ioc3", cmds.start, "Running", "Disabled", "Running", "Disabled", False),
-        ("ioc4", cmds.start, "Stopped", "Disabled", "Running", "Disabled", False),
-        ("ioc3", cmds.enable, "Running", "Disabled", "Running", "Enabled", True),
-        ("ioc4", cmds.enable, "Stopped", "Disabled", "Stopped", "Enabled", True),
-        ("ioc1", cmds.disable, "Running", "Enabled", "Running", "Disabled", True),
-        ("ioc3", cmds.disable, "Running", "Disabled", "Running", "Disabled", True),
-        ("ioc1", cmds.restart, "Running", "Enabled", "Running", "Enabled", False),
-        ("ioc4", cmds.restart, "Stopped", "Disabled", "Running", "Disabled", False),
-        ("ioc3", cmds.restart, "Running", "Disabled", "Running", "Disabled", False),
+        ("ioc1", cmds.stop, "Running", True, "Stopped", True, False),
+        ("ioc3", cmds.stop, "Running", False, "Stopped", False, False),
+        ("ioc4", cmds.stop, "Stopped", False, "Stopped", False, False),
+        ("ioc1", cmds.start, "Running", True, "Running", True, False),
+        ("ioc3", cmds.start, "Running", False, "Running", False, False),
+        ("ioc4", cmds.start, "Stopped", False, "Running", False, False),
+        ("ioc3", cmds.enable, "Running", False, "Running", True, True),
+        ("ioc4", cmds.enable, "Stopped", False, "Stopped", True, True),
+        ("ioc1", cmds.disable, "Running", True, "Running", False, True),
+        ("ioc3", cmds.disable, "Running", False, "Running", False, True),
+        ("ioc1", cmds.restart, "Running", True, "Running", True, False),
+        ("ioc4", cmds.restart, "Stopped", False, "Running", False, False),
+        ("ioc3", cmds.restart, "Running", False, "Running", False, False),
     ],
 )
 def test_state_change_commands(
@@ -76,14 +96,12 @@ def test_state_change_commands(
     if not as_root:
         monkeypatch.setattr(os, "geteuid", lambda: 1000)  # Mock as non-root user
 
-    _, status = get_ioc_statuses(ioc_name)
-    assert status == (before_state, before_enabled)
+    assert get_ioc_status(ioc_name) == (before_state, before_enabled)
 
     rc = command(ioc_name)
     assert rc == 0
 
-    _, status = get_ioc_statuses(ioc_name)
-    assert status == (after_state, after_enabled)
+    assert get_ioc_status(ioc_name) == (after_state, after_enabled)
 
 
 def test_install_new_ioc(sample_iocs, monkeypatch):
@@ -92,8 +110,7 @@ def test_install_new_ioc(sample_iocs, monkeypatch):
     rc = cmds.install("ioc2")
     assert rc == 0
 
-    _, status = get_ioc_statuses("ioc2")
-    assert status == ("Stopped", "Disabled")
+    assert get_ioc_status("ioc2") == ("Stopped", False)
 
     assert "ioc2" in find_installed_iocs()
 
@@ -135,8 +152,8 @@ def test_requires_root(sample_iocs, monkeypatch, command):
     [
         (cmds.startall, "Running", None),
         (cmds.stopall, "Stopped", None),
-        (cmds.enableall, None, "Enabled"),
-        (cmds.disableall, None, "Disabled"),
+        (cmds.enableall, None, True),
+        (cmds.disableall, None, False),
     ],
 )
 def test_state_change_all(sample_iocs, cmd, expected_state, expected_enabled):
@@ -150,9 +167,9 @@ def test_state_change_all(sample_iocs, cmd, expected_state, expected_enabled):
     # Check all are running
     for ioc in installed_iocs.values():
         if expected_state is not None:
-            assert get_ioc_statuses(ioc.name)[1][0] == expected_state
+            assert get_ioc_status(ioc.name)[0] == expected_state
         if expected_enabled is not None:
-            assert get_ioc_statuses(ioc.name)[1][1] == expected_enabled
+            assert get_ioc_status(ioc.name)[1] is expected_enabled
 
 
 @pytest.mark.parametrize("as_root", [True, False])
@@ -173,20 +190,36 @@ def test_status(sample_iocs, capsys, monkeypatch, as_root):
     rc = cmds.status()
     captured = capsys.readouterr()
     expected_output = """IOC Status Auto-Start
-----------------------------
+--------------------------
 ioc1 Running Enabled
 ioc3 Running Disabled
 ioc4 Stopped Disabled
 ioc5 Stopped Enabled
 """
 
-    def normalize_whitespace(s: str) -> str:
-        return "\n".join(" ".join(line.split()) for line in s.strip().splitlines())
+    def normalize_whitespace_and_ansi_codes(s: str) -> str:
+        whitespace_normalized = "\n".join(" ".join(line.split()) for line in s.strip().splitlines())
+        return strip_ansi_codes(whitespace_normalized)
 
     for line in expected_output.strip().splitlines():
-        assert normalize_whitespace(line) in normalize_whitespace(captured.out)
+        assert normalize_whitespace_and_ansi_codes(line) in normalize_whitespace_and_ansi_codes(
+            captured.out
+        )
 
     assert rc == 0
+
+
+def test_status_no_installed_iocs(sample_iocs, monkeypatch, capsys):
+    monkeypatch.setattr(
+        manage_iocs.utils,
+        "find_installed_iocs",
+        lambda: {},
+    )
+
+    rc = cmds.status()
+    captured = capsys.readouterr()
+    assert "No Installed IOCs found on this host." in captured.out
+    assert rc == 1
 
 
 @pytest.mark.parametrize(

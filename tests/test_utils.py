@@ -8,7 +8,7 @@ from manage_iocs.utils import (
     find_iocs,
     find_iocs_on_host,
     get_ioc_procserv_port,
-    get_ioc_statuses,
+    get_ioc_status,
     read_config_file,
     systemctl_passthrough,
 )
@@ -62,25 +62,27 @@ def test_find_installed_iocs(sample_iocs):
     assert "ioc5" in iocs
 
 
-def test_get_ioc_statuses(sample_iocs):
-    rc, status = get_ioc_statuses("ioc1")
-    assert rc == 0
-    assert status == ("Running", "Enabled")
+def test_get_ioc_status(sample_iocs):
+    assert get_ioc_status("ioc1") == ("Running", True)
 
 
-def test_get_ioc_statuses_not_installed(sample_iocs):
-    rc, _ = get_ioc_statuses("ioc2")
-    assert rc != 0
+def test_get_ioc_status_not_installed(sample_iocs):
+    with pytest.raises(RuntimeError):
+        get_ioc_status("ioc2")
 
 
-def test_get_ioc_statuses_unknown_response(sample_iocs, monkeypatch):
+def test_get_ioc_status_unknown_response(sample_iocs, monkeypatch):
     def dummy_systemctl_passthrough(action: str, ioc: str) -> tuple[str, str, int]:
-        return ("unknown response", "", 0)
+        if action == "is-active":
+            return ("unknown response", "", 3)
+        elif action == "is-enabled":
+            return ("disabled", "", 3)
+        else:
+            return ("", "", 0)
 
     monkeypatch.setattr(manage_iocs.utils, "systemctl_passthrough", dummy_systemctl_passthrough)
 
-    rc, status = get_ioc_statuses("ioc1")
-    assert status == ("Unknown response", "Unknown response")
+    assert get_ioc_status("ioc1") == ("Unknown response", False)
 
 
 @pytest.mark.parametrize(
