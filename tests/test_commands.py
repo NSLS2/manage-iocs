@@ -302,8 +302,6 @@ def test_lastlog(sample_iocs, monkeypatch, capsys):
 
 
 def test_lastlog_no_log_file(sample_iocs, monkeypatch):
-    sample_iocs / "var" / "log" / "softioc" / "ioc4.log"
-
     with pytest.raises(RuntimeError, match="No log file found for IOC 'ioc4'"):
         cmds.lastlog("ioc4")
 
