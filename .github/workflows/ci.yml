@@ -22,7 +22,7 @@ jobs:
       - name: Setup Pixi
         uses: prefix-dev/setup-pixi@2253d9c9310442c09975d64615591b5b381da6e7  # yamllint disable-line rule:line-length
         with:
-          pixi-version: v0.71.3
+          pixi-version: v0.71.3 # required for pixi.lock v7 format
           cache: false
           frozen: true
 
